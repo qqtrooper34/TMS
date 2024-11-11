@@ -1,12 +1,17 @@
-import Vue from 'vue'
-import App from './App.vue'
-import router from './router'
-import store from './store'
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import App from './App.vue';
+import vuetify from './plugins/vuetify';
+import router from './router';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ru'; // Импортируем русскую локаль
 
-Vue.config.productionTip = false
 
-new Vue({
-  router,
-  store,
-  render: h => h(App)
-}).$mount('#app')
+// Устанавливаем глобальную локаль Day.js
+dayjs.locale('ru');
+
+createApp(App)
+  .use(vuetify)
+  .use(createPinia())
+  .use(router)
+  .mount('#app');

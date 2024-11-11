@@ -1,29 +1,18 @@
-import Vue from 'vue'
-import VueRouter from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import { createRouter, createWebHistory } from 'vue-router';
+import OrdersList from '../components/OrdersList.vue';  // Импортируй компонент
+import tracking from '../components/tracking.vue';
 
-Vue.use(VueRouter)
-
+// Определение маршрутов
 const routes = [
-  {
-    path: '/',
-    name: 'home',
-    component: HomeView
-  },
-  {
-    path: '/about',
-    name: 'about',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/AboutView.vue')
-  }
-]
+  { path: '/', redirect: '/plan' },
+  { path: '/plan', name: 'plan', component: OrdersList },
+  { path: '/fact', name: 'fact', component: tracking },
+];
 
-const router = new VueRouter({
-  mode: 'history',
-  base: process.env.BASE_URL,
-  routes
-})
+// Создание экземпляра роутера
+const router = createRouter({
+  history: createWebHistory(),  // Используй createWebHistory() для Vue 3
+  routes,
+});
 
-export default router
+export default router;
