@@ -117,39 +117,7 @@
         <!-- Контейнер инфографики и системных кнопок -->
         <div style="display: flex; align-items: center; justify-content: flex-start; flex-wrap: nowrap;">
   <!-- Инфографика -->
- 
 
-    <v-menu
-    v-model="datemenu"
-  :close-on-content-click="false"
-  transition="scale-transition"
- >
-      <template v-slot:activator="{ props }">
-
-        <v-text-field
-        class="pa-2 statistics-card"
-          color="primary"
-            variant="outlined"
-            v-model="filterDateValue"
-            label="Дата"
-            min-width="130"
-            readonly
-            v-bind="props"
-            @change="applyDateFilter"
-          ></v-text-field>
-      </template>
-      <v-locale-provider locale="ru">
-      <v-date-picker show-adjacent-months first-day-of-week="1" :hide-header="true"  
-          color="primary"  @update:modelValue="onDateSelected"
-          ></v-date-picker>
-      </v-locale-provider>
-    </v-menu>
-
-   
-        
-   
-  
-   
     <!-- Карточка 1: Всего заказов -->
     <v-card class="pa-2 statistics-card" variant="outlined" >
       <div style="display: flex; align-items: center; justify-content: center;">
@@ -234,6 +202,31 @@
         <!-- Таблицы заказов и маршрутов -->
         <div style="display: flex; align-items: center; justify-content: flex-start; flex-wrap: nowrap;">
           <v-toolbar density="compact" height="40" flat color="primary">
+            <v-menu
+        v-model="datemenu"
+        :close-on-content-click="false"
+        transition="scale-transition"
+      >
+        <template v-slot:activator="{ props }">
+          <v-btn
+            prepend-icon="mdi-calendar"
+            color="white"
+            variant="text"
+            v-bind="props"
+          >
+            {{ filterDateValue || 'Выберите дату' }}
+          </v-btn>
+        </template>
+        <v-locale-provider locale="ru">
+          <v-date-picker 
+            show-adjacent-months 
+            first-day-of-week="1" 
+            :hide-header="true"
+            color="primary"
+            @update:modelValue="onDateSelected"
+          ></v-date-picker>
+        </v-locale-provider>
+      </v-menu>
           <v-tabs v-model="activeTab" >
             <v-tab value="orders"  density="compact"  size="small" :slim="true" slider-color="orange">Заказы</v-tab>
             <v-tab value="routes" density="compact"  size="small" :slim="true" slider-color="orange">Маршруты</v-tab>
@@ -1426,7 +1419,6 @@ export default {
       ],
       isMenuOpen: false,
       map: null,
-      map1: null,
       markers: [],
       markers1: [],
       editOrderDialog: false,
@@ -1547,7 +1539,7 @@ export default {
       skills: [],
       // Добавьте другие поля, если необходимо
     },
-    activeTab: 0, // Индекс активной вкладки (0 - Заказы, 1 - Маршруты)
+    activeTab: 'orders', // Индекс активной вкладки (0 - Заказы, 1 - Маршруты)
     activeTab1: 'planning',
     routes: [], // Массив маршрутов
     routeHeaders: [
