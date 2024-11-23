@@ -69,7 +69,7 @@
 
       <!-- Маршрут -->
       <td>
-        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+      <div style="display: flex; flex-direction: column; align-items: flex-start;">
         <template v-if="item.routes.length">
           <v-chip
             v-for="(route, index) in item.routes"
@@ -77,8 +77,8 @@
             size="x-small"
             :color="route.route_color || 'grey'"
             class="mr-1 mb-1"
+            :class="{ 'glow-effect': isAgentOnDuty(item.pk) }"
             @click="openRouteTimelineDrawer(route.route)"
-        
           >
             {{ route.route_name || 'Нет маршрута' }}
           </v-chip>
@@ -89,7 +89,7 @@
           </v-chip>
         </template>
       </div>
-</td>
+    </td>
 
       <!-- Водитель -->
       <td>
@@ -99,14 +99,87 @@
             <span style="font-size: 14px;">{{ item.name }}</span>
             <!-- Кнопки чата и деталей -->
             <div>
+              <div class="status-indicators">
+            <!-- Online status indicator -->
+            <v-tooltip bottom>
+              <template v-slot:activator="{ props }">
+                <v-icon
+                  v-bind="props"
+                  :color="getOnlineStatusColor(item.last_packet_time)"
+                  size="small"
+                  class="mr-1"
+                >
+                  {{ getOnlineStatusIcon(item.last_packet_time) }}
+                </v-icon>
+              </template>
+              <span>{{ getOnlineStatusText(item.last_packet_time) }}</span>
+            </v-tooltip>
+
+            <!-- Duty status indicator -->
+            <v-tooltip bottom>
+              <template v-slot:activator="{ props }">
+                <v-icon
+                  v-bind="props"
+                  :color="getDutyStatusColor(item.pk)"
+                  size="small"
+                  class="mr-1"
+                >
+                  {{ getDutyStatusIcon(item.pk) }}
+                </v-icon>
+              </template>
+              <span>{{ getDutyStatusText(item.pk) }}</span>
+            </v-tooltip>
   <!-- Контейнер для иконок -->
   <div style="display: flex; flex-direction: column; align-items: center;">
-    <!-- Иконка чата -->
-    <v-icon color="primary" :class="{'blinking': item.hasNewMessage}" @click="openChat(item)">mdi-chat</v-icon>
-    <!-- Галочка, отображается только если есть маршрут -->
-    <v-icon  color="primary"  @click="openRouteTimelineDrawer(item.route)">mdi-crosshairs</v-icon>
-  </div>
+  <!-- Иконка чата с тултипом -->
+  <v-tooltip bottom>
+    <template v-slot:activator="{ props }">
+      <v-icon
+        v-bind="props"
+        color="primary"
+        :class="{ 'blinking': item.hasNewMessage }"
+        @click="openChat(item)"
+      >
+        mdi-chat
+      </v-icon>
+    </template>
+    <span>Чат с водителем</span>
+  </v-tooltip>
+
+  <!-- Иконка трека водителя с тултипом -->
+  <v-tooltip bottom>
+    <template v-slot:activator="{ props }">
+      <v-icon
+        v-bind="props"
+        v-if="item && item.pk"
+        :color="agentTracks[item.pk] ? 'red' : 'primary'"
+        @click="toggleAgentTrack(item)"
+        class="mr-1"
+      >
+        mdi-crosshairs-gps
+      </v-icon>
+    </template>
+    <span>{{ agentTracks[item.pk] ? 'Скрыть трек водителя' : 'Показать трек водителя' }}</span>
+  </v-tooltip>
+
+  <!-- Иконка деталей GPS с тултипом -->
+  <v-tooltip bottom>
+    <template v-slot:activator="{ props }">
+      <v-icon
+        v-bind="props"
+        color="primary"
+        @click="openAgentDrawer(item)"
+        class="mr-1"
+      >
+        mdi-map-marker-path
+      </v-icon>
+    </template>
+    <span>Детали GPS</span>
+  </v-tooltip>
 </div>
+</div>
+</div>
+
           </div>
           <!-- Иконки с количеством заказов -->
           <div style="display: flex; align-items: center; margin-top: 5px;">
@@ -177,7 +250,7 @@
       </v-menu>
               <v-tabs v-model="activeTab" >
                 <v-tab value="orders"  density="compact"  size="small" :slim="true" slider-color="orange">Заказы</v-tab>
-                <v-tab value="routes" density="compact"  size="small" :slim="true" slider-color="orange">Оповещения</v-tab>
+                <v-tab value="alerts" density="compact"  size="small" :slim="true" slider-color="orange">Оповещения</v-tab>
               </v-tabs>
          
       <!-- Пространство между закладками и кнопками -->
@@ -412,7 +485,7 @@
           </td>
           <td v-if="visibleOrderColumns.includes('status')">
 
-    <v-chip :color="getStatusColor(item.status)" small>
+    <v-chip :color="getStatusColor(item.status)"   density="compact"  size="x-small">
           {{ getStatusDescriptionById(item.status) }}
         </v-chip>
 </td>
@@ -429,12 +502,12 @@
   {{ item.time_unload ? item.time_unload + ' мин' : '' }}
 </td>
 <td v-if="visibleOrderColumns.includes('time_issues')">
-  <v-chip v-if="item.time_issues" :color="item.time_issues.color" small>
+  <v-chip v-if="item.time_issues" :color="item.time_issues.color"  density="compact"  size="x-small">
     {{ item.time_issues.text }}
   </v-chip>
 </td>
             <td v-if="visibleOrderColumns.includes('problem_description')">{{ item.problem_description }}</td>
-            <td v-if="visibleOrderColumns.includes('route_name')">{{ item.route_name }}</td>
+            <td v-if="visibleOrderColumns.includes('route_name')"> <div class="address-cell" >{{ item.route_name }} </div></td>
           </tr>
         </template>
     
@@ -451,119 +524,87 @@
                 </v-window-item>
     
       <!-- Таблица маршрутов -->
-      <v-window-item value="routes" transition="false" reverse-transition="false">
-        <!-- Элементы управления фильтром -->
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <div style="display: flex; justify-content: space-between;">
-            <div class="filter-buttons">
-              <div style="margin-bottom: 5px;">
-          
-          <v-btn     density="compact"
-                size="small" prepend-icon="mdi-plus"
-            color="green" @click="openCreateRouteDialog">Создать маршрут</v-btn>
-    
-            <v-btn
-                   density="compact"
-                size="small"
-            color="red" prepend-icon="mdi-delete"
-            :disabled="!hasSelectedRoutes"
-            @click="openDeleteRoutesDialog"
-          >
-            Удалить маршруты
-          </v-btn>
-        </div>
-            </div>
-      
-    
-          </div>
-        </div>
-        <div v-if="routes && routes.length > 0">
-          <v-data-table
-            density="compact"
-            :headers="routeHeaders"
-            item-key="pk"
-            :items="routes"
-            class="elevation-1 text-caption"
-            ref="routeTable"
-            fixed-header
-            :height="computedTableHeight"
-            :items-per-page-options="[
-              { value: 50, title: '50' },
+      <v-window-item value="alerts" transition="false" reverse-transition="false">
+        
+    <div class="alerts-panel">
+      <v-data-table
+        :headers="Alertheaders"
+        :items="paginatedAlerts"
+        :search="searchQuery"
+        :height="computedTableHeight"
+        density="compact"
+        class="elevation-1"
+        :fixed-header="true"
+        :multi-sort="true"
+        :hover="true"
+        items-per-page="100"
+        :hide-default-footer="true"
+        :items-per-page-options="[
               { value: 100, title: '100' },
-              { value: 200, title: '200' },
-              { value: -1, title: 'Все' }
+              { value: 250, title: '250' },
+              { value: 500, title: '500' }
             ]"
             items-per-page-text="Элементов на странице"
-            multi-sort
-            :search="searchQuery"
-              :hover="true"
-        items-per-page="-1"
-        :hide-default-footer="true"
-        dense
+            dense
+        @click:row="handleRowClick"
+      >
+        <!-- Table Top Toolbar -->
+        <template v-slot:top>
+          <v-toolbar density="compact" color="primary">
+            <!-- Filter Chips -->
+            <div class="d-flex flex-wrap gap-2 mx-4">
+              <v-chip
+                v-for="type in alertTypes"
+                :key="type.value"
+                :color="selectedTypes.includes(type.value) ? 'green' : 'default'"
+                :variant="selectedTypes.includes(type.value) ? 'elevated' : 'outlined'"
+                class="ma-1"
+                filter
+                @click="toggleFilter(type.value)"
+              >
+                {{ type.title }}
+              </v-chip>
+            </div>
+
+            <v-switch
+              v-model="showOnMap"
+              label="Показать на карте"
+              color="white"
+              hide-details
+              density="compact"
+              class="ml-4"
+            ></v-switch>
+          </v-toolbar>
+        </template>
+
+        <template v-slot:item.type="{ item }">
+          <v-chip
+            :color="getAlertTypeColor(item.type)"
+            size="small"
+            class="text-caption"
           >
-            <!-- Слот для заголовка чекбокса -->
-            <template v-slot:header.is_select="{ header }">
-              <v-checkbox
-                v-model="allRoutesSelected"
-                hide-details
-                class="pa-0 ma-0"
-              />
-            </template>
-            <template #item="{ item }">
-              <tr @dblclick="openEditRouteModal(item)">
-                <td style="width: 40px;">
-                  <v-checkbox
-                    v-model="item.is_select"
-                    @change="updateSelectedRoutes(item)"
-                    hide-details
-                    class="pa-0 ma-0"
-                  />
-                </td>
-                <td>
-                  <div :style="{ backgroundColor: item.color, width: '20px', height: '20px' }"></div>
-                </td>
-                <td>{{ item.pk }}</td>
-                <td><div style="display: flex; align-items: center;">
-          <span>{{ item.name }}</span>
-          <v-icon
-            small
-            class="ml-2"
-            @click="openEditRouteDialog(item)"
+            {{ getAlertTypeName(item.type) }}
+          </v-chip>
+        </template>
+
+        <template v-slot:item.task_code="{ item }">
+          <v-btn
+            v-if="item.task_code"
+            variant="text"
+            density="compact"
+            @click.stop="openEditOrderModal(item.pk_task_link)"
           >
-            mdi-pencil
-          </v-icon>
-        </div></td>
-                <td>{{ item.code }}</td>
-                <td>{{ item.begin_time }}</td>
-                <td>{{ item.end_time }}</td>
-                <td><div style="display: flex; align-items: center;">
-          <span>{{ item.driver }}</span>
-          <v-icon
-            small
-            class="ml-2"
-            @click="openChangeDriverDialog(item)"
-          >
-            mdi-account-edit
-          </v-icon>
-        </div></td>
-                <td>{{ item.route_weight }}</td>
-                <td>{{ item.route_volume }}</td>
-                <td>{{ item.route_stops }}</td>
-                <td>{{ item.duration }}</td>
-                <td>{{ item.plan_route_length }}</td>
-                <td>{{ item.cost }}</td>
-                <td>
-            <v-icon @click="openRouteTimelineDrawer(item)">mdi-chevron-right</v-icon>
-          </td>
-                <!-- Остальные поля -->
-              </tr>
-            </template>
-          </v-data-table>
-        </div>
-        <div v-else>
-          <p>Нет спланированных маршрутов</p>
-        </div>
-      </v-window-item>
+            {{ item.task_code }}
+          </v-btn>
+          <span v-else>-</span>
+        </template>
+
+        <template v-slot:item.createtime="{ item }">
+          {{ formatMessageTime(item.createtime) }}
+        </template>
+      </v-data-table>
+    </div>
+  </v-window-item>
               </v-window>
            <!-- Тулбар с пагинацией, закреплённый внизу -->
            <div class="sticky-pagination" v-if="isPaginationVisible">
@@ -575,6 +616,7 @@
             hide-details
             :flat="true"
             style="max-width: 120px;"
+              @change="onItemsPerPageChange"
           ></v-autocomplete>
           <v-pagination
             v-model="currentPage"
@@ -1260,6 +1302,73 @@
     </v-card-actions>
   </v-card>
 </v-dialog>
+
+
+<v-bottom-sheet
+  v-model="agentDrawer"
+  :max-height="'40vh'"
+  inset
+  persistent
+>
+  <v-toolbar dense flat>
+    <v-toolbar-title>{{ selectedAgent?.name || 'Детали агента' }}</v-toolbar-title>
+    <v-spacer></v-spacer>
+    <v-btn icon @click="closeAgentDrawer">
+  <v-icon>mdi-close</v-icon>
+</v-btn>
+  </v-toolbar>
+
+  <v-card flat>
+    <v-card-text style="overflow-y: auto; max-height: calc(40vh - 64px);">
+      <div v-if="loadingAgentTrack">
+    <v-progress-circular indeterminate></v-progress-circular>
+  </div>
+  <div v-else>
+    <div v-if="agentTrackPoints.length === 0">
+      Нет данных GPS трека для данного агента.
+    </div>
+    <div v-else>
+      <div class="d-flex justify-space-between">
+    <div>
+      <div class="text-subtitle-2">Общая дистанция</div>
+      <div class="text-h6">{{ totalDistance }} км</div>
+    </div>
+    <div>
+      <div class="text-subtitle-2">Время в пути</div>
+      <div class="text-h6">{{ totalDuration }}</div>
+    </div>
+    <div>
+      <div class="text-subtitle-2">Средняя скорость</div>
+      <div class="text-h6">{{ avgSpeed }} км/ч</div>
+    </div>
+  </div>
+      <!-- Отображение деталей GPS трека -->
+      <v-simple-table>
+    <thead>
+      <tr>
+        <th>Время</th>
+        <th>Координаты</th>
+        <th>Скорость (км/ч)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr
+        v-for="(point, index) in agentTrackPoints"
+        :key="index"
+        @click="highlightPointOnMap(point)"
+        style="cursor: pointer;"
+      >
+        <td>{{ formatDateTime(point.point_time) }}</td>
+        <td>{{ point.lat_y }}, {{ point.lon_x }}</td>
+        <td>{{ point.speed || 0 }}</td>
+      </tr>
+    </tbody>
+  </v-simple-table>
+    </div>
+  </div>
+    </v-card-text>
+  </v-card>
+</v-bottom-sheet>
     </template>
     
     
@@ -1306,15 +1415,25 @@ import markerStatus4Url from "@/assets/marker_status_4.svg?url";
 import markerStatus5Url from "@/assets/marker_status_5.svg?url";
 import markerStatus6Url from "@/assets/marker_status_6.svg?url";
 import markeragent from "@/assets/agent.svg?url";
+import markergps from "@/assets/marker_GPS.svg?url";
+import markeralert1 from "@/assets/marker_alert_type1.svg?url";
+import markeralert2 from "@/assets/marker_alert_type2.svg?url";
+import markeralert3 from "@/assets/marker_alert_type3.svg?url";
+
     
     // Импорт склада
     import warehouseMarker from '@/assets/warehouse.png'; // Импорт маркера склада
 import { color } from "d3";
+
     // Получаем базовый URL приложения
     const appHost = window.location.origin;
     
     // Формируем абсолютные пути к иконкам
     const markeragentUrl = `${appHost}${markeragent}`;
+    const markergpsUrl = `${appHost}${markergps}`;
+    const markeralert1Url = `${appHost}${markeralert1}`;
+    const markeralert2Url = `${appHost}${markeralert2}`;
+    const markeralert3Url = `${appHost}${markeralert3}`;
     const markerDefaultUrl = `${appHost}${markerDefault}`;
     const markerSelectUrl = `${appHost}${markerSelect}`;
     const markerdragorderUrl = `${appHost}${markerdragorder}`; // Формируем URL иконки
@@ -1331,7 +1450,7 @@ import { color } from "d3";
     
     
     export default {
-      name: 'plan',
+      name: 'fact',
       components: {
         draggable,
       },
@@ -1560,9 +1679,41 @@ import { color } from "d3";
       { type: 2, icon: 'mdi-alert', color: 'yellow', label: 'Внимание' },
       { type: 3, icon: 'mdi-flash', color: 'red', label: 'Срочно' },
     ],
-    onlineStatus: {}, // Ключ: pk агента, значение: статус онлайн
-    shiftStatus: {},  // Ключ: pk агента, значение: статус смены
-      
+    alertTypes: [
+  { value: 1, title: 'Успешно', color: 'success' },
+  { value: 2, title: 'Предупреждение', color: 'warning' },
+  { value: 3, title: 'Проблема', color: 'error' }
+],
+    agentLocations: {}, // Store agent locations
+      locationUpdateInterval: null,
+      shiftStatus: {}, // Store agent shift status
+      agentTracks: {},
+      agentDrawer: false,
+    selectedAgent: null,
+    agentTrackPoints: [],
+    agentTrackPolyline: null,
+    loadingAgentTrack: false,
+    totalDistance: 0,
+    totalDuration: '0 ч 00 мин',
+    avgSpeed: 0,
+    highlightMarker: null,
+    statusUpdateInterval: null,
+    alerts: [],
+    alertMarkers: {},
+    search: '',
+    showOnMap: false,
+    selectedTypes: [],
+    Alertheaders : [
+  { title: 'Тип', key: 'type', sortable: true },
+  { title: 'Отправитель', key: 'sender_name', sortable: true },
+  { title: 'Сообщение', key: 'txt', sortable: false },
+  { title: 'Заказ', key: 'task_code', sortable: true },
+  { title: 'Время', key: 'createtime', sortable: true }
+],
+alertsTotalItems: 0,
+
+
+
       };
       },
     
@@ -1588,13 +1739,36 @@ import { color } from "d3";
         const end = this.currentPage * this.itemsPerPage;
         return this.sortedOrders.slice(start, end);
       },
-      pageCount() {
-        return Math.ceil(this.sortedOrders.length / this.itemsPerPage);
-      },
+
+      paginatedAlerts() {
+  const start = (this.currentPage - 1) * this.itemsPerPage;
+  const end = this.currentPage * this.itemsPerPage;
+  console.log('Пагинация: start:', start, 'end:', end);
+  return this.filteredAlerts.slice(start, end);
+},
+
+    
+
+pageCount() {
+  if (this.activeTab === 'orders') {
+    return Math.ceil(this.sortedOrders.length / this.itemsPerPage);
+  } else if (this.activeTab === 'alerts') {
+    return Math.ceil(this.filteredAlerts.length / this.itemsPerPage); // Используем длину отфильтрованных оповещений
+  }
+  return 0;
+},
     
       isPaginationVisible() {
-        return this.activeTab === 'orders' || this.activeTab === 'routes';
+        return this.activeTab === 'orders' || this.activeTab === 'alerts';
       },
+
+      filteredAlerts() {
+  console.log('selectedTypes:', this.selectedTypes);
+  console.log('alerts:', this.alerts);
+
+  if (!this.selectedTypes || this.selectedTypes.length === 0) return this.alerts || [];
+  return (this.alerts || []).filter(alert => this.selectedTypes.includes(alert.type));
+},
         isPlanButtonDisabled() {
         return !this.planningParams.startFromWarehouse && !this.planningParams.returnToStock;
       },
@@ -1673,7 +1847,7 @@ import { color } from "d3";
     const status1Orders = ordersInRoute.filter(order => order.status === 1).length;
     const status2Orders = ordersInRoute.filter(order => order.status === 2).length;
     const status6Orders = ordersInRoute.filter(order => order.status === 6).length;
-
+    console.log('Агент перед возвратом:', agent)
     if (routesForAgent.length > 0) {
       return {
         ...agent,
@@ -1702,6 +1876,7 @@ import { color } from "d3";
       // остальная информация...
     };
   });
+
 
   // Сортировка остается без изменений
   return agentsWithRoutes.sort((a, b) => {
@@ -1953,7 +2128,27 @@ import { color } from "d3";
             this.currentPage = 1;
           });
         }
-      }
+      },
+
+      selectedTypes() {
+    if (this.showOnMap) {
+      this.displayAlertsOnMap();
+    }
+  },
+
+  showOnMap(newVal) {
+  if (newVal) {
+    // Если переключатель включён, показываем алерты на карте
+    this.displayAlertsOnMap();
+  } else {
+    // Если переключатель выключён, удаляем алерты
+    this.clearAlerts();
+  }
+},
+
+  activeTab(newVal, oldVal) {
+    this.currentPage = 1;
+  },
     },
     
       methods: {
@@ -1999,7 +2194,24 @@ import { color } from "d3";
   // Если вы хотите управлять их видимостью, используйте `updateOrderMarkersVisibility`
 },
 
+clearAlerts() {
+  console.log("Удаляем маркеры алертов", this.alertMarkers);
 
+  for (const alertPk in this.alertMarkers) {
+    const markerObj = this.alertMarkers[alertPk];
+    if (markerObj && markerObj.marker) {
+      console.log("Удаляем маркер:", alertPk);
+      markerObj.marker.destroy(); // Обращаемся к свойству marker
+    }
+  }
+
+  this.alertMarkers = {};
+  console.log("Маркер удалён, объект сброшен:", this.alertMarkers);
+},
+
+onItemsPerPageChange() {
+    this.currentPage = 1; // Сбрасываем на первую страницу
+  },
     
       fetchOrders(filter = {}, selectedRoutePks = []) {
   return axios
@@ -2363,6 +2575,7 @@ import { color } from "d3";
       console.error('Ошибка при получении описаний статусов:', error);
     }
   },
+
     
     updateRouteOrderMarkerSelection(order) {
       const routePk = order.pk_route;
@@ -2793,52 +3006,29 @@ import { color } from "d3";
       zones: agent.zones || [],
       hasNewMessage: false,
     }));
+    console.log('Загруженные агенты:', this.agents); // Добавьте это
   } catch (error) {
     console.error('Ошибка при загрузке агентов:', error);
   }
 },
 
-
-determineOnlineStatus(lastPacketTime) {
-    if (!lastPacketTime || lastPacketTime === '1900-01-01 00:00:00') {
-      return 'grey';
-    }
-    const lastPacketDate = new Date(lastPacketTime);
-    const now = new Date();
-    const diffMinutes = (now - lastPacketDate) / (1000 * 60);
-
-    if (diffMinutes <= 30) {
-      return 'green';
-    } else if (diffMinutes > 30 && diffMinutes <= 120) {
-      return 'yellow';
-    } else {
-      return 'red';
-    }
-  },
-
-  async fetchDriverShiftStatus(agentPk) {
+async fetchAgentStatuses() {
     try {
-      const response = await axios.get('http://185.155.18.145:15777/api/driver_route_activity', {
-        params: { agent_pk: agentPk }
-      });
-      const activity = response.data[0]; // Предполагаем, что последний элемент - текущая активность
+      const response = await axios.get('http://185.155.18.145:15777/api/agent-statuses');
+      const statuses = response.data;
 
-      if (activity) {
-        if (activity.start_time && !activity.end_time) {
-          return 'on_shift';
-        } else if (activity.start_time && activity.end_time) {
-          return 'shift_completed';
-        } else {
-          return 'not_on_shift';
+      // Обновляем `last_packet_time` в `this.agents`
+      statuses.forEach(status => {
+        const agent = this.agents.find(a => a.pk === status.pk);
+        if (agent) {
+          agent.last_packet_time = status.last_packet_time;
         }
-      } else {
-        return 'not_on_shift';
-      }
+      });
     } catch (error) {
-      console.error(`Ошибка при получении статуса смены для агента ${agentPk}:`, error);
-      return 'unknown';
+      console.error('Ошибка при обновлении статусов агентов:', error);
     }
   },
+
 
         // Открыть модалку для редактирования агента
         openEditAgentModal(agent) {
@@ -2985,6 +3175,30 @@ zoomToSelectedRoutes() {
 },
 
 
+zoomToCoordinates(coordinates) {
+  if (coordinates.length === 1) {
+    // Только одна точка, центрируем карту на неё
+    console.log('Только одна координата, центрируем карту на:', coordinates[0]);
+    this.map.setCenter(coordinates[0]);
+    this.map.setZoom(14); // Установите нужный уровень зума
+  } else if (coordinates.length > 1) {
+    const points = turf.featureCollection(coordinates.map(coord => turf.point(coord)));
+    const bbox = turf.bbox(points);
+    console.log('BBox для зумирования:', bbox);
+
+    if (bbox && bbox.length === 4 && bbox.every(num => typeof num === 'number' && !isNaN(num))) {
+      const bounds = {
+        southWest: [bbox[0], bbox[1]], // [minLon, minLat]
+        northEast: [bbox[2], bbox[3]], // [maxLon, maxLat]
+      };
+      this.map.fitBounds(bounds, { padding: 50 });
+    } else {
+      console.error('Некорректный bbox:', bbox);
+    }
+  } else {
+    console.warn('Нет координат для зумирования.');
+  }
+},
     
         // Отправить данные формы для сохранения агента
         async submitAgentForm() {
@@ -3194,7 +3408,7 @@ zoomToSelectedRoutes() {
     this.agents.forEach(agent => {
     agent.is_select = false;
   });
-
+  await this.loadAlerts();
 },
     
         /**
@@ -4862,38 +5076,44 @@ isMyMessage(message) {
     openTask(pk_task_link) {
         // Реализуйте логику открытия задания
     },
-    // Метод для обработки полученных через сокет сообщений
-    handleMessageSent(newMessage) {
-    console.log('newMessage:', newMessage);
+// Метод для обработки сообщений из сокета
+handleMessageSent(newMessage) {
+  console.log('newMessage:', newMessage);
 
-    // Добавляем новое сообщение в общий список сообщений
-    this.chatMessages.push(newMessage);
+  // Проверяем тип сообщения: чат или оповещение
+  if (newMessage.type && newMessage.type !== 0) {
+    // Это оповещение
+    this.alerts.push(newMessage); // Добавляем в таблицу оповещений
+    console.log('Новое оповещение добавлено:', newMessage);
+  } else {
+    // Это сообщение для чата
+    this.chatMessages.push(newMessage); // Добавляем в чат
+    this.notifyAgentMessage(newMessage.pk_agent); // Уведомление о новом сообщении
+  }
 
-    // Уведомляем о новом сообщении (мигание иконки)
-    this.notifyAgentMessage(newMessage.pk_agent);
+  // Формируем сообщение для snackbar
+  const snackbarMessage = `${newMessage.sender_name}: ${newMessage.txt}`;
 
-    // Формируем сообщение для snackbar
-    const snackbarMessage = `${newMessage.sender_name}: ${newMessage.txt}`;
+  // Определяем цвет в зависимости от типа сообщения
+  let color;
+  switch (newMessage.type) {
+    case 1:
+      color = "green";
+      break;
+    case 2:
+      color = "yellow";
+      break;
+    case 3:
+      color = "red";
+      break;
+    default:
+      color = "primary";
+  }
 
-    // Определяем цвет в зависимости от типа сообщения
-    let color;
-    switch (newMessage.type) {
-        case 1:
-            color = "green";
-            break;
-        case 2:
-            color = "yellow";
-            break;
-        case 3:
-            color = "red";
-            break;
-        default:
-            color = "primary";
-    }
-
-    // Показываем snackbar с заранее определёнными данными и pk_agent
-    this.showSnackbar(snackbarMessage, color, newMessage.pk_agent);
+  // Показываем snackbar с соответствующими данными
+  this.showSnackbar(snackbarMessage, color, newMessage.pk_agent);
 },
+
     // Метод для обработки полученных через сокет файлов
     handleFileUploaded(newFile) {
     console.log('newFile:', newFile); // Проверьте, что поле createtime присутствует
@@ -5028,12 +5248,496 @@ selectReaction(type) {
   },
 
     
+  async fetchAgentLocation(agentId) {
+      const startDate = `${this.filterDate} 00:00:00`;
+      const endDate = `${this.filterDate} 23:59:59`;
+      
+      try {
+        const response = await axios.get(`http://185.155.18.145:15777/api/gps-track/${agentId}`, {
+          params: { startDate, endDate }
+        });
+        
+        if (response.data && response.data.length > 0) {
+          // Get the latest location
+          const latestLocation = response.data[response.data.length - 1];
+          this.updateAgentMarker(agentId, latestLocation);
+        }
+      } catch (error) {
+        console.error('Error fetching agent location:', error);
+      }
     },
+
+    updateAgentMarker(agentId, location) {
+      console.log('Updating marker for agent:', agentId, 'with location:', location);
+      // Remove existing marker if any
+      if (this.agentLocations[agentId]?.marker) {
+        this.agentLocations[agentId].marker.destroy();
+      }
+
+      // Create new marker
+      const marker = new mapgl.Marker(this.map, {
+        coordinates: [location.lon_x, location.lat_y],
+        icon: markeragentUrl,
+        size: [30, 30],
+        zIndex: 15, // Higher than route markers
+      });
+
+      this.agentLocations[agentId] = {
+        marker,
+        location,
+        lastUpdate: new Date()
+      };
+    },
+
+    getOnlineStatusColor(lastPacketTime) {
+  if (!lastPacketTime || lastPacketTime === '1900-01-01 00:00:00') return 'grey';
+
+  const lastPacketMoment = moment(lastPacketTime);
+  if (!lastPacketMoment.isValid()) return 'grey';
+
+  const diff = moment().diff(lastPacketMoment, 'minutes');
+  if (diff <= 30) return 'green';
+  if (diff <= 60) return 'orange';
+  if (diff <= 120) return 'red';
+  // Для diff > 120 возвращаем красный цвет
+  return 'red';
+},
+
+getOnlineStatusIcon(lastPacketTime) {
+  if (!lastPacketTime || lastPacketTime === '1900-01-01 00:00:00') {
+    return 'mdi-help-circle';
+  }
+  const lastPacketMoment = moment(lastPacketTime);
+  if (!lastPacketMoment.isValid()) return 'mdi-help-circle';
+
+  const diff = moment().diff(lastPacketMoment, 'minutes');
+  if (diff <= 30) return 'mdi-check-circle';
+  if (diff <= 60) return 'mdi-clock';
+  if (diff <= 120) return 'mdi-alert';
+  // Для diff > 120 возвращаем mdi-alert
+  return 'mdi-alert';
+},
+
+    getOnlineStatusText(lastPacketTime) {
+  if (!lastPacketTime || lastPacketTime === '1900-01-01 00:00:00') {
+    return 'Не зарегистрирован';
+  }
+  const lastPacketMoment = moment(lastPacketTime);
+  if (!lastPacketMoment.isValid()) {
+    return 'Неизвестно';
+  }
+  const diff = moment().diff(lastPacketMoment, 'minutes');
+  if (diff <= 30) return 'Онлайн';
+  if (diff <= 60) return 'Отошёл';
+  if (diff <= 120) return 'Оффлайн';
+  // Для diff > 120
+  return 'Давно оффлайн';
+},
+
+    async fetchDriverShiftStatus(agentPk) {
+      try {
+        const response = await axios.get('http://185.155.18.145:15777/api/driver_route_activity', {
+          params: { agent_pk: agentPk }
+        });
+        if (response.data && response.data.length > 0) {
+          const activity = response.data[0];
+          this.shiftStatus[agentPk] = activity;
+        }
+      } catch (error) {
+        console.error('Error fetching shift status:', error);
+      }
+    },
+
+    isAgentOnDuty(agentPk) {
+      const status = this.shiftStatus[agentPk];
+      return status && status.start_time && !status.end_time;
+    },
+
+    getDutyStatusColor(agentPk) {
+      const status = this.shiftStatus[agentPk];
+      if (!status) return 'grey';
+      if (status.start_time && !status.end_time) return 'green';
+      if (status.start_time && status.end_time) return 'red';
+      return 'grey';
+    },
+
+    getDutyStatusIcon(agentPk) {
+      const status = this.shiftStatus[agentPk];
+      if (!status) return 'mdi-account-question';
+      if (status.start_time && !status.end_time) return 'mdi-account-check';
+      if (status.start_time && status.end_time) return 'mdi-account-off';
+      return 'mdi-account-question';
+    },
+
+    getDutyStatusText(agentPk) {
+      const status = this.shiftStatus[agentPk];
+      if (!status) return 'Статус неизвестен';
+      if (status.start_time && !status.end_time) return 'На смене';
+      if (status.start_time && status.end_time) return 'Смена завершена';
+      return 'Не на смене';
+    },
+
+    startLocationUpdates() {
+      this.locationUpdateInterval = setInterval(() => {
+  this.agentsWithRouteInfo.forEach(agent => {
+    this.fetchAgentLocation(agent.pk);
+        });
+      }, 300000); // Update every 5 minutes
+    },
+
+    stopLocationUpdates() {
+      if (this.locationUpdateInterval) {
+        clearInterval(this.locationUpdateInterval);
+      }
+    },
+
+    drawAgentTrack(agentId, trackPoints) {
+  // Удаляем предыдущий трек, если он есть
+  if (this.agentTracks[agentId]) {
+    this.agentTracks[agentId].destroy();
+    delete this.agentTracks[agentId];
+  } else {
+    // Если трека нет, создаем
+    const coordinates = trackPoints.map(point => [point.lon_x, point.lat_y]);
+
+    // Создаём полилинию
+    const polyline = new mapgl.Polyline(this.map, {
+      coordinates,
+      width: 3,
+      color: '#2196F3',
+      zIndex: 10,
+    });
+
+    // Сохраняем полилинию для возможного удаления в будущем
+    this.agentTracks[agentId] = polyline;
+
+    // Зумируем карту на трек
+    this.zoomToCoordinates(coordinates);
+  }
+},
+    async showAgentTrack(agent) {
+  try {
+    const startDate = `${this.filterDate} 00:00:00`;
+    const endDate = `${this.filterDate} 23:59:59`;
+
+    const response = await axios.get(`http://185.155.18.145:15777/api/gps-track/${agent.pk}`, {
+      params: { startDate, endDate }
+    });
+
+    if (response.data && response.data.length > 0) {
+      this.drawAgentTrack(agent.pk, response.data);
+    } else {
+      console.warn('Нет данных GPS для агента:', agent.name);
+      this.showSnackbar(`Нет данных GPS для агента: ${agent.name}`, 'warning');
+    }
+  } catch (error) {
+    console.error('Ошибка при загрузке GPS трека агента:', error);
+    this.showSnackbar('Ошибка при загрузке GPS трека агента', 'error');
+  }
+},
+
+  rawAgentTrack(agentId, trackPoints) {
+  // Удаляем предыдущий трек, если он есть
+  if (this.agentTracks[agentId]) {
+    this.agentTracks[agentId].destroy();
+    delete this.agentTracks[agentId];
+  } else {
+    // Если трека нет, создаем
+    const coordinates = trackPoints.map(point => [point.lon_x, point.lat_y]);
+
+    // Создаём полилинию
+    const polyline = new mapgl.Polyline(this.map, {
+      coordinates,
+      width: 3,
+      color: '#2196F3',
+      zIndex: 10,
+    });
+
+    // Сохраняем полилинию для возможного удаления в будущем
+    this.agentTracks[agentId] = polyline;
+
+    // Зумируем карту на трек
+    this.zoomToCoordinates(coordinates);
+  }
+},
+
+  getBoundsFromCoordinates(coordinates) {
+    const lats = coordinates.map(coord => coord[1]);
+    const lons = coordinates.map(coord => coord[0]);
+
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+
+    return [ [minLon, minLat], [maxLon, maxLat] ];
+  },
+
+  openAgentDrawer(agent) {
+    this.selectedAgent = agent;
+    this.agentDrawer = true;
+    this.loadAgentTrack(agent.pk);
+  },
+
+
+  async loadAgentTrack(agentId) {
+    try {
+      this.loadingAgentTrack = true;
+
+      const startDate = `${this.filterDate} 00:00:00`;
+      const endDate = `${this.filterDate} 23:59:59`;
+
+      const response = await axios.get(`http://185.155.18.145:15777/api/gps-track/${agentId}`, {
+        params: { startDate, endDate }
+      });
+
+      if (response.data && response.data.length > 0) {
+        this.agentTrackPoints = response.data;
+        this.displayAgentTrackOnMap();
+      } else {
+        console.warn('Нет данных GPS для агента:', agentId);
+        this.showSnackbar('Нет данных GPS для агента', 'warning');
+      }
+    } catch (error) {
+    console.error('Ошибка при загрузке GPS трека агента:', error);
+    this.showSnackbar('Ошибка при загрузке GPS трека агента', 'error');
+  } finally {
+    this.loadingAgentTrack = false;
+  }
+},
+
+  displayAgentTrackOnMap() {
+    // Удаляем предыдущую полилинию трека, если она есть
+    if (this.agentTrackPolyline) {
+      this.agentTrackPolyline.destroy();
+    }
+
+    // Создаём массив координат
+    const coordinates = this.agentTrackPoints.map(point => [point.lon_x, point.lat_y]);
+
+    // Создаём полилинию
+    this.agentTrackPolyline = new mapgl.Polyline(this.map, {
+      coordinates,
+      width: 3,
+      color: '#FF5722',
+      zIndex: 12,
+    });
+
+    // Масштабируем карту на трек
+    this.calculateTrackStatistics(this.agentTrackPoints);
+  },
+
+  calculateTrackStatistics(trackPoints) {
+    let totalDistance = 0;
+    let totalDuration = 0;
+    let speeds = [];
+
+    for (let i = 1; i < trackPoints.length; i++) {
+      const prevPoint = trackPoints[i - 1];
+      const currPoint = trackPoints[i];
+
+      // Вычисление расстояния между точками
+      const distance = this.calculateDistance(
+        prevPoint.lat_y, prevPoint.lon_x,
+        currPoint.lat_y, currPoint.lon_x
+      );
+      totalDistance += distance;
+
+      // Вычисление разницы во времени
+      const timeDiff = (new Date(currPoint.point_time) - new Date(prevPoint.point_time)) / 1000; // в секундах
+      totalDuration += timeDiff;
+
+      // Сбор скоростей
+      if (currPoint.speed) {
+        speeds.push(currPoint.speed);
+      }
+    }
+
+    this.totalDistance = (totalDistance / 1000).toFixed(2); // в км
+    this.totalDuration = this.formatDuration(totalDuration);
+    this.avgSpeed = speeds.length ? (speeds.reduce((a, b) => a + b) / speeds.length).toFixed(1) : 0;
+  },
+
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Радиус Земли в метрах
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // в метрах
+  },
+
+  formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours} ч ${minutes.toString().padStart(2, '0')} мин`;
+  },
+
+  closeAgentDrawer() {
+  this.agentDrawer = false;
+  this.selectedAgent = null;
+  this.agentTrackPoints = [];
+  this.totalDistance = 0;
+  this.totalDuration = '0 ч 00 мин';
+  this.avgSpeed = 0;
+
+  // Удаляем трек с карты
+  if (this.agentTrackPolyline) {
+    this.agentTrackPolyline.destroy();
+    this.agentTrackPolyline = null;
+  }
+
+  // Удаляем маркер
+  if (this.highlightMarker) {
+    this.highlightMarker.destroy();
+    this.highlightMarker = null;
+  }
+},
+
+highlightPointOnMap(point) {
+    // Удаляем предыдущий маркер, если есть
+    if (this.highlightMarker) {
+      this.highlightMarker.destroy();
+    }
+    // Создаем новый маркер
+    this.highlightMarker = new mapgl.Marker(this.map, {
+      coordinates: [point.lon_x, point.lat_y],
+      icon: markergpsUrl, // Используем вашу иконку
+      size: [30, 30],
+      zIndex: 20,
+    });
+    // Центрируем карту на точку
+    this.map.setCenter([point.lon_x, point.lat_y]);
+    this.map.setZoom(16);
+  },
+
+  async toggleAgentTrack(agent) {
+    if (this.agentTracks[agent.pk]) {
+      // Трек отображен, скрываем его
+      this.agentTracks[agent.pk].destroy();
+      delete this.agentTracks[agent.pk];
+    } else {
+      // Трек не отображен, загружаем и отображаем
+      await this.showAgentTrack(agent);
+    }
+  },
+
+  async loadAlerts() {
+  try {
+    const startDate = `${this.filterDate}`;
+    const response = await axios.get('http://185.155.18.145:15777/api/tamsmobile/messagesbyType', {
+      params: { date: startDate },
+    });
+    this.alerts = response.data;
+    if (this.showOnMap) {
+      this.displayAlertsOnMap();
+    }
+  } catch (error) {
+    console.error('Error loading alerts:', error);
+  }
+},
+
+handleRowClick(event, { item }) {
+  if (event.target.closest('.v-btn')) return;
+
+  console.log("Строка таблицы выбрана:", item);
+  this.focusOnAlert(item);
+},
+focusOnAlert(alert) {
+  if (!alert || !this.alertMarkers[alert.pk]) {
+    console.warn("Маркер для выбранного алерта не найден:", alert);
+    return;
+  }
+
+  const { coordinates } = this.alertMarkers[alert.pk];
+  console.log("Координаты маркера:", coordinates);
+
+  if (!coordinates || coordinates.length !== 2) {
+    console.error("Координаты маркера некорректны:", coordinates);
+    return;
+  }
+
+  this.map.setCenter(coordinates);
+  this.map.setZoom(16);
+},
+  toggleFilter(type) {
+  const index = this.selectedTypes.indexOf(type); // Используйте this.selectedTypes
+  if (index === -1) {
+    this.selectedTypes.push(type);
+  } else {
+    this.selectedTypes.splice(index, 1);
+  }
+},
+
+
+
+  getAlertTypeColor(type) {
+    const alertType = this.alertTypes.find(t => t.value === type);
+    return alertType ? alertType.color : 'grey';
+  },
+
+  getAlertTypeName(type) {
+    const alertType = this.alertTypes.find(t => t.value === type);
+    return alertType ? alertType.title : 'Неизвестно';
+  },
+
+  displayAlertsOnMap() {
+  Object.values(this.alertMarkers).forEach(markerObj => markerObj.marker.destroy());
+  this.alertMarkers = {};
+
+  const filteredAlerts = this.selectedTypes.length > 0 
+    ? this.alerts.filter(alert => this.selectedTypes.includes(alert.type))
+    : this.alerts;
+
+  filteredAlerts.forEach(alert => {
+    if (alert.lon_x == null || alert.lat_y == null) {
+      console.warn("Некорректные координаты для алерта:", alert);
+      return;
+    }
+
+    const coordinates = [alert.lon_x, alert.lat_y];
+    const marker = new mapgl.Marker(this.map, {
+      coordinates,
+      icon: this.getAlertIcon(alert.type),
+      size: [30, 30],
+      zIndex: 15,
+    });
+
+    this.alertMarkers[alert.pk] = { marker, coordinates }; // Сохраняем объект маркера с координатами
+  });
+},
+
+getAlertIcon(type) {
+  // Импортированные иконки, привязанные к типу
+  const icons = {
+    1: markeralert1Url,
+    2: markeralert2Url,
+    3: markeralert3Url
+  };
+
+  // Возвращаем иконку только если тип существует
+  return icons[type] || null;
+},
+
+  },
+
+
     
     mounted() {
         this.initMap();
         this.applyDateFilter();
-        this.fetchAgents(); // Загружаем агентов при загрузке компонента
+        this.fetchAgents().then(() => {
+  this.agentsWithRouteInfo.forEach(agent => {
+    this.fetchDriverShiftStatus(agent.pk);
+    this.fetchAgentLocation(agent.pk);
+  });
+}); // Загружаем агентов при загрузке компонента
       document.addEventListener('keydown', this.onGlobalKeyDown);
       document.addEventListener('keyup', this.onGlobalKeyUp);
         window.addEventListener('resize', this.onWindowResize); // Добавлено
@@ -5044,6 +5748,15 @@ selectReaction(type) {
         this.fetchSkills(); 
         this.fetchWorkTypes();
         this.fetchStatusDescriptions();
+        this.loadAlerts();
+
+    
+this.startLocationUpdates();
+
+this.statusUpdateInterval = setInterval(() => {
+    this.fetchAgentStatuses();
+  }, 5 * 60 * 1000); // 5 минут в миллисекундах
+
  
         socket.on('messageSent', (newMessage) => {
     if (newMessage.clientId !== this.clientId) { // Проверка, чтобы не обрабатывать свои же сообщения
@@ -5149,7 +5862,10 @@ socket.on('fileUploadeddisp', this.handleFileUploaded);
       beforeDestroy() {
       document.removeEventListener('keydown', this.onGlobalKeyDown);
       document.removeEventListener('keyup', this.onGlobalKeyUp);
-      window.removeEventListener('resize', this.onWindowResize); // Добавлено
+      window.removeEventListener('resize', this.onWindowResize); 
+      this.stopLocationUpdates();// Добавлено
+      clearInterval(this.statusUpdateInterval);
+
         socket.off('orderCreated', this.handleOrderCreated);
         socket.off('messageSent', (newMessage) => {
     if (newMessage.clientId !== this.clientId) { // Проверка, чтобы не обрабатывать свои же сообщения
@@ -5539,6 +6255,31 @@ socket.on('fileUploadeddisp', this.handleFileUploaded);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+.glow-effect {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.status-indicators {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.alerts-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-filter :deep(.v-field__input),
+.status-filter :deep(.v-select__selection) {
+  color: white !important;
+}
+
+.search-field :deep(.v-field__input) {
+  color: white !important;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -5554,6 +6295,18 @@ socket.on('fileUploadeddisp', this.handleFileUploaded);
 @keyframes blinker {
   50% {
     opacity: 0;
+  }
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 5px rgba(0,255,0,0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0,255,0,0.8);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(0,255,0,0.5);
   }
 }
 

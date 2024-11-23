@@ -1281,8 +1281,7 @@
     </v-btn>
   </template>
 </v-snackbar>
-
- <v-navigation-drawer
+<v-navigation-drawer
   v-model="routeTimelineDrawer"
   right
   temporary
@@ -2029,7 +2028,7 @@ ordersWithRouteInfo() {
 
   methods: {
     applyDateFilter() {
-      
+      console.log('applyDateFilter вызван');
       if (this.filterDate) {
         const dateObj = new Date(this.filterDate);
         const year = dateObj.getFullYear();
@@ -3411,6 +3410,7 @@ async fetchRoutes(filter = {}, selectedRoutePks = []) {
 },
 
 applyDateFilter(selectedRoutePks = []) {
+  console.log('applyDateFilter 123 вызван');
   this.clearMap(); // Очищаем карту от старых полилиний и маркеров
   this.routes = []; // Сбрасываем список маршрутов
   if (this.filterDate) {
@@ -3641,6 +3641,7 @@ formatDateForFilter(date) {
     },
 
   async sendPlanningRequest(jsonData) {
+    console.log('sendPlanningRequest вызван');
   try {
     const response = await axios.post('http://185.155.18.145:15000', jsonData, {
       headers: {
@@ -3660,6 +3661,7 @@ formatDateForFilter(date) {
   }
 },
 async processVroomResponse(data) {
+  console.log('sendPlanningRequest вызван');
   if (!data.routes || !Array.isArray(data.routes)) {
     console.error('Нет маршрутов в ответе VROOM');
     return;
@@ -3781,6 +3783,7 @@ async createRoute(routeData) {
 },
 
 async updateOrdersForRoute(route, pk_route) {
+   console.log(`Обновление заказов для маршрута ${pk_route}`);
   let stepNumber = 1; // Counter for the route sequence
 
   for (const step of route.steps) {
@@ -4197,8 +4200,8 @@ enableMarkerDrag(marker, order, initialCoordinates, routeColor) {
         }
 
         // Update markers of free orders
-        this.updateMapMarkers();
-        this.applyDateFilter();
+       this.updateMapMarkers();
+       // this.applyDateFilter();
 
       } else {
         console.log('Order does not fit in the route.');
@@ -5240,7 +5243,7 @@ openEditRouteDialog(route) {
 
   getWorkTypeNameById(workTypeId) {
     const workType = this.workTypes.find(type => type.pk === String(workTypeId));
-    console.log(`Ищем workType для ID: ${workTypeId} ->`, workType);
+
     return workType ? workType.worktype : `Неизвестный тип (${workTypeId})`;
   },
   openRouteTimelineDrawer(route) {
